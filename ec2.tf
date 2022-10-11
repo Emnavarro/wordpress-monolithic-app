@@ -13,7 +13,7 @@ data "aws_ami" "ec2-ami" {
 resource "aws_instance" "wordpress" {
   instance_type        = "t2.micro"
   ami                  = data.aws_ami.ec2-ami.id
-  subnet_id            = element(module.vpc.public_subnets,count.index)
+  subnet_id            = element(module.vpc.public_subnets, count.index)
   security_groups      = ["${aws_security_group.sg.id}"]
   user_data            = file("userdata.sh")
   iam_instance_profile = aws_iam_instance_profile.ec2-ssm-instanceprofile.name
@@ -23,7 +23,7 @@ resource "aws_instance" "wordpress" {
 }
 
 variable "ec2_quantity_per_subnet" {
-  type = number
+  type    = number
   default = 2
 }
 
