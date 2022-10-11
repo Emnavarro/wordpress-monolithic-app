@@ -1,26 +1,30 @@
 
 data "aws_ami" "ec2-ami" {
-  most_recent = true 
-  owners = ["amazon"]
+  most_recent = true
+  owners      = ["amazon"]
 
   filter {
-    name = "name"
+    name   = "name"
     values = ["amzn2-ami-hvm-*"]
   }
 }
 
 #Create a wordpress module in every availability zone
 resource "aws_instance" "wordpress" {
-  instance_type = "t2.micro"
-  ami =  data.aws_ami.ec2-ami.id
-  subnet_id = module.vpc.public_subnets[count.index]
-  security_groups = ["${aws_security_group.sg.id}"]
-  user_data = "${file("userdata.sh")}"
+  instance_type        = "t2.micro"
+  ami                  = data.aws_ami.ec2-ami.id
+  subnet_id            = element(module.vpc.public_subnets,count.index)
+  security_groups      = ["${aws_security_group.sg.id}"]
+  user_data            = file("userdata.sh")
   iam_instance_profile = aws_iam_instance_profile.ec2-ssm-instanceprofile.name
 
-
   #Takes the subnet string array from the module
-  count = length(module.vpc.public_subnets)
+  count = length(module.vpc.public_subnets) * var.ec2_quantity_per_subnet
+}
+
+variable "ec2_quantity_per_subnet" {
+  type = number
+  default = 2
 }
 
 #######################################
@@ -29,29 +33,33 @@ resource "aws_instance" "wordpress" {
 
 resource "aws_security_group" "sg" {
   vpc_id = module.vpc.vpc_id
-  name = "Security group web"
-  dynamic "ingress"{
+  name   = "Security group web"
+  dynamic "ingress" {
     for_each = var.sg-ports
     content {
-        from_port = ingress.value
-        to_port = ingress.value
-        protocol = "tcp"
-        cidr_blocks = ["0.0.0.0/0"]
+      from_port   = ingress.value
+      to_port     = ingress.value
+      protocol    = "tcp"
+      cidr_blocks = ["0.0.0.0/0"]
     }
   }
 
   egress {
-    from_port = 0
-    to_port = 0
+    from_port   = 0
+    to_port     = 0
     cidr_blocks = ["0.0.0.0/0"]
-    protocol = "-1"
+    protocol    = "-1"
   }
 }
 
 variable "sg-ports" {
-  type = list(number)
-  default = [22,80,443]
+  type    = list(number)
+  default = [22, 80]
 }
+
+#######################################
+#        Instance IAM Role            #
+#######################################
 
 #IAM Role for Wordpress // Parameter store
 resource "aws_iam_role" "ec2-ssm-role" {
@@ -80,7 +88,7 @@ resource "aws_iam_role" "ec2-ssm-role" {
 #Attach the policy with the IAM role
 resource "aws_iam_role_policy_attachment" "ec2-policy-attachment" {
   policy_arn = "arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore"
-  role = aws_iam_role.ec2-ssm-role.name
+  role       = aws_iam_role.ec2-ssm-role.name
 }
 
 #Allows IAM role attachment with an ec2 instance
@@ -89,3 +97,29 @@ resource "aws_iam_instance_profile" "ec2-ssm-instanceprofile" {
   role = aws_iam_role.ec2-ssm-role.name
 }
 
+
+#######################################
+#    AWS Application load balancer    #
+#######################################
+/*
+resource "aws_lb" "application-loadbalancer" {
+  name = "Wordpress-loadbalancer"
+  load_balancer_type = "application"
+  security_groups = [ "${aws_security_group.SGLoadBalancer.id}" ]
+  subnets = module.vpc.public_subnets
+
+}
+
+resource "aws_security_group" "SGLoadBalancer" {
+  vpc_id = module.vpc.vpc_id
+  name = "SGLoadBalancer"
+  description = "Allow http access"
+
+  ingress{
+    from_port   = 80
+    to_port     = 80
+    cidr_blocks = ["0.0.0.0/0"]
+    protocol    = "tcp"
+  }
+}
+*/
