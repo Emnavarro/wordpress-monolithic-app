@@ -1,5 +1,6 @@
 .*
 !/.gitignore
 .terraform
+providers.tf
 terraform.tfstate
 terraform.tfstate.backup
